@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+out_fh = open('out.csv', 'w')
+out_fh.write('Utilization,Queueing Delay\n')
+
 import os
 folder = 'results'
 for fh_name in os.listdir(folder):
@@ -11,5 +14,7 @@ for fh_name in os.listdir(folder):
         total += float(line)
         count += 1
     avg = total/count
-    print int(fh_name.strip('.txt')), avg
+    out_fh.write(fh_name.strip('.txt') + ',' + '%f' % avg + "\n")
+
+out_fh.close()
 
