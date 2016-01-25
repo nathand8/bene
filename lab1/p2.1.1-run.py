@@ -22,7 +22,7 @@ if __name__ == '__main__':
     Sim.scheduler.reset()
 
     # setup network
-    net = Network('p1-network.txt')
+    net = Network('p2.1.1-network.txt')
 
     # setup routes
     n1 = net.get_node('n1')
@@ -47,25 +47,12 @@ if __name__ == '__main__':
 
     # setup app
     d = DelayHandler()
-    net.nodes['n2'].add_protocol(protocol="delay",handler=d)
+    net.nodes['n3'].add_protocol(protocol="delay",handler=d)
 
-    # send one packet
-    p = packet.Packet(destination_address=n2.get_address('n1'),ident=1,protocol='delay',length=1000)
-    Sim.scheduler.add(delay=0, event=p, handler=n1.send_packet)
-
-    # take the link down
-    Sim.scheduler.add(delay=1, event=None, handler=n1.get_link('n2').down)
-
-    # send one packet (it won't go through)
-    p = packet.Packet(destination_address=n2.get_address('n1'),ident=1,protocol='delay',length=1000)
-    Sim.scheduler.add(delay=1.1, event=p, handler=n1.send_packet)
-
-    # bring the link up
-    Sim.scheduler.add(delay=2, event=None, handler=n1.get_link('n2').up)
-
-    # send one packet (and now it goes through)
-    p = packet.Packet(destination_address=n2.get_address('n1'),ident=1,protocol='delay',length=1000)
-    Sim.scheduler.add(delay=2.1, event=p, handler=n1.send_packet)
+    # send 1000 packet (1000 bytes each)
+    for i in range(0, 1000):
+        p = packet.Packet(destination_address=n3.get_address('n2'),ident=i,protocol='delay',length=1000)
+        Sim.scheduler.add(delay=0, event=p, handler=n1.send_packet)
 
 
     # run the simulation
