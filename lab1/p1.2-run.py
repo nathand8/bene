@@ -14,7 +14,7 @@ import random
 
 class DelayHandler(object):
     def receive_packet(self,packet):
-        print packet.created, packet.ident, Sim.scheduler.current_time() - packet.created
+        print packet.created, packet.ident, Sim.scheduler.current_time()
 
 
 if __name__ == '__main__':

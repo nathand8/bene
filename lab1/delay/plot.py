@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import optparse
 import sys
 
@@ -14,11 +16,13 @@ class Plotter:
     def linePlot(self):
         """ Create a line graph. """
         data = pd.read_csv("out.csv")
+
         plt.figure()
-        ax = data.plot(x="Utilization",y="Queueing Delay")
-        ax.set_xlabel("Utilization")
-        ax.set_ylabel("Queue Delay")
-        fig = ax.get_figure()
+        fig, axs = plt.subplots(1)
+        data.plot(ax=axs,x="Utilization",y="Average")
+        data.plot(ax=axs,x="Utilization",y="Theory")
+        axs.set_xlabel("Utilization")
+        axs.set_ylabel("Queue Delay")
         fig.savefig('line_graph.png')
 
 if __name__ == '__main__':

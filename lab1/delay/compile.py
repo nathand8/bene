@@ -1,7 +1,11 @@
 #! /usr/bin/env python
 
 out_fh = open('out.csv', 'w')
-out_fh.write('Utilization,Queueing Delay\n')
+out_fh.write('Utilization,Average,Theory\n')
+
+def theory(utilization_rate):
+    service_rate = float(1000000/(1000*8))
+    return float(1/(2*float(service_rate))*utilization_rate/(1-utilization_rate))
 
 import os
 folder = 'results'
@@ -14,7 +18,11 @@ for fh_name in os.listdir(folder):
         total += float(line)
         count += 1
     avg = total/count
-    out_fh.write(fh_name.strip('.txt') + ',' + '%f' % avg + "\n")
+    ut_rate = float(fh_name.strip('.txt'))/100
+    out_fh.write(str(ut_rate) + 
+            ',%f' % avg + 
+            ',%f' % theory(ut_rate) +
+            '\n')
 
 out_fh.close()
 
