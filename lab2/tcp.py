@@ -56,7 +56,6 @@ class TCP(Connection):
     def send(self,data):
         ''' Send data on the connection. Called by the application. This
             code currently sends all data immediately. '''
-        self.send_buffer.put(data)
         self.send_packet(data,self.sequence)
         self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
 
