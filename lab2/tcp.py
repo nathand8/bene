@@ -3,7 +3,7 @@ sys.path.append('..')
 
 from src.sim import Sim
 from src.connection import Connection
-from src.tcppacket import TCPPacket
+from tcppacket import TCPPacket
 from src.buffer import SendBuffer,ReceiveBuffer
 
 class TCP(Connection):
