@@ -45,9 +45,19 @@ class Main(object):
                           default=0.0,
                           help="random loss rate")
 
+        parser.add_option("-w","--window-size",type="int",dest="window",
+                          default=3000,
+                          help="window size")
+
+        parser.add_option("-q","--queue",dest="queue",
+                          default=False, action="store_true",
+                          help="use nodes with a queue of 100")
+
         (options,args) = parser.parse_args()
         self.filename = options.filename
         self.loss = options.loss
+        self.window = options.window
+        self.use_queue = options.queue
 
     def diff(self):
         args = ['diff','-u',self.filename,self.directory+'/'+self.filename]
@@ -67,7 +77,10 @@ class Main(object):
         Sim.set_debug('TCP')
 
         # setup network
-        net = Network('networks/one-hop.txt')
+        if self.use_queue:
+            net = Network('networks/one-hop-queue.txt')
+        else:
+            net = Network('networks/one-hop.txt')
         net.loss(self.loss)
 
         # setup routes
@@ -84,8 +97,8 @@ class Main(object):
         a = AppHandler(self.filename)
 
         # setup connection
-        c1 = TCP(t1,n1.get_address('n2'),1,n2.get_address('n1'),1,a,window=3000)
-        c2 = TCP(t2,n2.get_address('n1'),1,n1.get_address('n2'),1,a,window=3000)
+        c1 = TCP(t1,n1.get_address('n2'),1,n2.get_address('n1'),1,a,window=self.window)
+        c2 = TCP(t2,n2.get_address('n1'),1,n1.get_address('n2'),1,a,window=self.window)
 
         # send a file
         with open(self.filename,'r') as f:

@@ -29,6 +29,10 @@ class TCP(Connection):
         self.timer = None
         # timeout duration in seconds
         self.timeout = 1
+        # Round trip time in seconds
+        self.estimated_rtt = None
+        # Deviation of sample rtt from estimated rtt
+        self.deviation_rtt = None
 
         ### Receiver functionality
 
@@ -76,7 +80,8 @@ class TCP(Connection):
                            destination_address=self.destination_address,
                            destination_port=self.destination_port,
                            body=data,
-                           sequence=sequence,ack_number=self.ack)
+                           sequence=sequence,ack_number=self.ack,
+                           sent_time=Sim.scheduler.current_time())
 
         # send the packet
         self.trace("%s (%d) sending TCP segment to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.sequence))
@@ -88,6 +93,29 @@ class TCP(Connection):
 
     def handle_ack(self,packet):
         ''' Handle an incoming ACK. '''
+
+        # Calculate Sample RTT
+        sample_rtt = Sim.scheduler.current_time() - packet.sent_time
+        self.trace("sample round trip time %f" % sample_rtt)
+
+        # Calculate the new estimated RTT
+        alpha = 0.125
+        if not self.estimated_rtt:
+            self.estimated_rtt = sample_rtt
+        else:
+            self.estimated_rtt = (1 - alpha) * self.estimated_rtt + alpha * sample_rtt
+
+        # Calculate the deviation of the sample RTT
+        beta = 0.25
+        if not self.deviation_rtt:
+            self.deviation_rtt = self.estimated_rtt/2
+        else:
+            self.deviation_rtt = (1 - beta) * self.deviation_rtt + beta * abs(sample_rtt - self.estimated_rtt)
+
+        # Calculate the Retransmission Timeout (RTO)
+        self.timeout = self.estimated_rtt + 4 * self.deviation_rtt
+        self.trace("changed the timeout to %f" % self.timeout)
+
         self.sequence = packet.ack_number
         self.send_buffer.slide(packet.ack_number)
         self.cancel_timer()
@@ -100,6 +128,8 @@ class TCP(Connection):
         self.trace("%s (%d) retransmission timer fired" % (self.node.hostname,self.source_address))
         packet_data = self.send_buffer.resend(self.mss)
         self.send_packet(packet_data[0], packet_data[1])
+        self.timeout = self.timeout * 2
+        self.trace("doubled the timeout to %f" % self.timeout)
         self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
 
     def cancel_timer(self):
@@ -121,15 +151,16 @@ class TCP(Connection):
         data = self.receive_buffer.get()
         self.ack = len(data[0]) + data[1]
         self.app.receive_data(data[0])
-        self.send_ack()
+        self.send_ack(packet.sent_time)
 
-    def send_ack(self):
+    def send_ack(self, packet_sent_time=0):
         ''' Send an ack. '''
         packet = TCPPacket(source_address=self.source_address,
                            source_port=self.source_port,
                            destination_address=self.destination_address,
                            destination_port=self.destination_port,
-                           sequence=self.sequence,ack_number=self.ack)
+                           sequence=self.sequence,ack_number=self.ack,
+                           sent_time=packet_sent_time)
         # send the packet
         self.trace("%s (%d) sending TCP ACK to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.ack_number))
         self.transport.send_packet(packet)

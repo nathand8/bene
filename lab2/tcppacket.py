@@ -7,7 +7,8 @@ class TCPPacket(Packet):
     def __init__(self,source_address=1,source_port=0,
                  destination_address=1,destination_port=0,
                  ident=0,ttl=100,protocol="TCP",body="",length=0,
-                 syn=False,ack=False,fin=False,sequence=0,ack_number=0):
+                 syn=False,ack=False,fin=False,sequence=0,
+                 ack_number=0,sent_time=0):
         Packet.__init__(self,source_address=source_address,
                         source_port=source_port,
                         destination_address=destination_address,
@@ -16,6 +17,7 @@ class TCPPacket(Packet):
                         body=body,length=length)
         self.sequence = sequence
         self.ack_number = ack_number
+        self.sent_time = sent_time
 
 if __name__ != "__main__":
     print "You imported the correct tcppacket"
