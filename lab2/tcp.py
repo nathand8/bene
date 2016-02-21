@@ -56,8 +56,19 @@ class TCP(Connection):
     def send(self,data):
         ''' Send data on the connection. Called by the application. This
             code currently sends all data immediately. '''
-        self.send_packet(data,self.sequence)
-        self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
+        self.send_buffer.put(data)
+        self.queue_packets()
+
+    def queue_packets(self):
+        ''' Send the next set of packets if there's any to send. Limit based
+            on window size and the number of outstanding packets '''
+        while True:
+            if self.send_buffer.available() <= 0:
+                break
+            if self.send_buffer.outstanding() + self.mss > self.window:
+                break
+            packet_data = self.send_buffer.get(self.mss)
+            self.send_packet(packet_data[0], packet_data[1])
 
     def send_packet(self,data,sequence):
         packet = TCPPacket(source_address=self.source_address,
@@ -77,11 +88,19 @@ class TCP(Connection):
 
     def handle_ack(self,packet):
         ''' Handle an incoming ACK. '''
+        self.sequence = packet.ack_number
+        self.send_buffer.slide(packet.ack_number)
         self.cancel_timer()
+        if self.send_buffer.outstanding() or self.send_buffer.available():
+            self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
+            self.queue_packets()
 
     def retransmit(self,event):
         ''' Retransmit data. '''
         self.trace("%s (%d) retransmission timer fired" % (self.node.hostname,self.source_address))
+        packet_data = self.send_buffer.resend(self.mss)
+        self.send_packet(packet_data[0], packet_data[1])
+        self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
 
     def cancel_timer(self):
         ''' Cancel the timer. '''
@@ -97,7 +116,11 @@ class TCP(Connection):
             the application, regardless of whether it is in order, and sends
             an ACK.'''
         self.trace("%s (%d) received TCP segment from %d for %d" % (self.node.hostname,packet.destination_address,packet.source_address,packet.sequence))
-        self.app.receive_data(packet.body)
+
+        self.receive_buffer.put(packet.body, packet.sequence)
+        data = self.receive_buffer.get()
+        self.ack = len(data[0]) + data[1]
+        self.app.receive_data(data[0])
         self.send_ack()
 
     def send_ack(self):
