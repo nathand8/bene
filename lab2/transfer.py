@@ -1,4 +1,5 @@
 import sys
+import numpy
 sys.path.append('..')
 
 from src.sim import Sim
@@ -110,6 +111,27 @@ class Main(object):
 
         # run the simulation
         Sim.scheduler.run()
+
+        # print some results
+        print
+        print "========== Overall results =========="
+        time = Sim.scheduler.current_time()
+        print "Total time: %f seconds" % time
+        avg = numpy.mean(c2.queueing_delay_list)
+        print "Average queueing delay: %f" % avg
+        max = numpy.max(c2.queueing_delay_list)
+        print "Max queueing delay: %f" % max
+        file_size = os.path.getsize(self.filename)
+        print "File size: %i" % file_size
+        throughput = file_size / time
+        print "Throughput: %f" % throughput
+
+        print "%i,%f,%f,%f,%i,%f\n" % (self.window,time,avg,max,file_size,throughput)
+        if self.loss == 0.0:
+            print "Outputing results to experiment.csv"
+            output_fh = open('experiment.csv', 'a')
+            output_fh.write("%i,%f,%f,%f,%i,%f\n" % (self.window,time,avg,max,file_size,throughput))
+            output_fh.close()
 
 if __name__ == '__main__':
     m = Main()

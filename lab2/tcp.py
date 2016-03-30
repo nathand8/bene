@@ -41,6 +41,8 @@ class TCP(Connection):
         # ack number to send; represents the largest in-order sequence
         # number not yet received
         self.ack = 0
+        # a list of all the queuing delays from the sender to receiver
+        self.queueing_delay_list = []
 
     def trace(self,message):
         ''' Print debugging messages. '''
@@ -59,7 +61,7 @@ class TCP(Connection):
 
     def send(self,data):
         ''' Send data on the connection. Called by the application. This
-            code currently sends all data immediately. '''
+            code uses the SendBuffer to send incrementally '''
         self.send_buffer.put(data)
         self.queue_packets()
 
@@ -145,8 +147,8 @@ class TCP(Connection):
         ''' Handle incoming data. This code currently gives all data to
             the application, regardless of whether it is in order, and sends
             an ACK.'''
+        self.queueing_delay_list.append(packet.queueing_delay)
         self.trace("%s (%d) received TCP segment from %d for %d" % (self.node.hostname,packet.destination_address,packet.source_address,packet.sequence))
-
         self.receive_buffer.put(packet.body, packet.sequence)
         data = self.receive_buffer.get()
         self.ack = len(data[0]) + data[1]
