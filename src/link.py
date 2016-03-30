@@ -16,6 +16,7 @@ class Link(object):
         self.busy = False
         self.queue = []
         self.dropped_packets_x = []
+        self.dropped_packets_y = []
         self.queue_log_x = []
         self.queue_log_y = []
 
@@ -26,11 +27,11 @@ class Link(object):
 
     def queue_log_entry(self):
         self.queue_log_x.append(Sim.scheduler.current_time())
-        self.queue_log_y.append(len(queue))
+        self.queue_log_y.append(len(self.queue))
 
     def dropped_packets_entry(self):
         self.dropped_packets_x.append(Sim.scheduler.current_time())
-        self.dropped_packets_y.append(len(queue))
+        self.dropped_packets_y.append(len(self.queue))
 
     def send_packet(self,packet):
         # check if link is running

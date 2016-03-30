@@ -208,7 +208,10 @@ class Main(object):
         self.t1 = t1
         self.t2 = t2
         self.net = net
-        self.rateTimePlot(c2.packets_received)
+        self.rateTimePlot(c2.packets_received, 'two/rateTime1.png')
+        self.rateTimePlot(c4.packets_received, 'two/rateTime2.png')
+        #self.linkab1 = n1.get_address('n2')
+        #self.queueSizePlot(
 
 if __name__ == '__main__':
     m = Main()
