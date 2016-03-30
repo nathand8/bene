@@ -3,34 +3,48 @@ from sim import Sim
 import random
 
 class Link(object):
-    def __init__(self,address=0,startpoint=None,endpoint=None,queue_size=None,
+    def __init__(self,address=0,startpoint=None,endpoint=None,max_queue_size=None,
                  bandwidth=1000000.0,propagation=0.001,loss=0):
         self.running = True
         self.address = address
         self.startpoint = startpoint
         self.endpoint = endpoint
-        self.queue_size = queue_size
+        self.max_queue_size = max_queue_size
         self.bandwidth = bandwidth
         self.propagation = propagation
         self.loss = loss
         self.busy = False
         self.queue = []
+        self.dropped_packets_x = []
+        self.queue_log_x = []
+        self.queue_log_y = []
 
     def trace(self,message):
         Sim.trace("Link",message)
 
     ## Handling packets ##
 
+    def queue_log_entry(self):
+        self.queue_log_x.append(Sim.scheduler.current_time())
+        self.queue_log_y.append(len(queue))
+
+    def dropped_packets_entry(self):
+        self.dropped_packets_x.append(Sim.scheduler.current_time())
+        self.dropped_packets_y.append(len(queue))
+
     def send_packet(self,packet):
         # check if link is running
         if not self.running:
             return
+        self.queue_log_entry()
         # drop packet due to queue overflow
-        if self.queue_size and len(self.queue) == self.queue_size:
+        if self.max_queue_size and len(self.queue) == self.max_queue_size:
+            self.dropped_packets_entry()
             self.trace("%d dropped packet due to queue overflow" % (self.address))
             return
         # drop packet due to random loss
         if self.loss > 0 and random.random() < self.loss:
+            self.dropped_packets_entry()
             self.trace("%d dropped packet due to random loss" % (self.address))
             return
         packet.enter_queue = Sim.scheduler.current_time()
