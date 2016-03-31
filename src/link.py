@@ -3,13 +3,13 @@ from sim import Sim
 import random
 
 class Link(object):
-    def __init__(self,address=0,startpoint=None,endpoint=None,max_queue_size=None,
+    def __init__(self,address=0,startpoint=None,endpoint=None,queue_size=None,
                  bandwidth=1000000.0,propagation=0.001,loss=0):
         self.running = True
         self.address = address
         self.startpoint = startpoint
         self.endpoint = endpoint
-        self.max_queue_size = max_queue_size
+        self.queue_size = queue_size
         self.bandwidth = bandwidth
         self.propagation = propagation
         self.loss = loss
@@ -37,9 +37,9 @@ class Link(object):
         # check if link is running
         if not self.running:
             return
-        self.queue_log_entry()
+        #self.queue_log_entry()
         # drop packet due to queue overflow
-        if self.max_queue_size and len(self.queue) == self.max_queue_size:
+        if self.queue_size and len(self.queue) == self.queue_size:
             self.dropped_packets_entry()
             self.trace("%d dropped packet due to queue overflow" % (self.address))
             return
@@ -66,6 +66,7 @@ class Link(object):
         Sim.scheduler.add(delay=delay+self.propagation,event=packet,handler=self.endpoint.receive_packet)
         # schedule next transmission
         Sim.scheduler.add(delay=delay,event='finish',handler=self.next)
+        self.queue_log_entry()
 
     def next(self,event):
         if len(self.queue) > 0:
@@ -79,3 +80,6 @@ class Link(object):
 
     def up(self,event):
         self.running = True
+
+if __name__!="__main__":
+    print "Importing bene/src/link.py"

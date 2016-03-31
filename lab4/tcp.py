@@ -1,4 +1,5 @@
 import sys
+import math
 sys.path.append('..')
 
 from src.sim import Sim
@@ -10,7 +11,7 @@ class TCP(Connection):
     ''' A TCP connection between two hosts.'''
     def __init__(self,transport,source_address,source_port,
                  destination_address,destination_port,app=None,window=1000,
-                 threshold=100000,fast_recovery=False):
+                 threshold=100000,fast_recovery=False,aiad=False,aimdc=0.5):
         Connection.__init__(self,transport,source_address,source_port,
                             destination_address,destination_port,app)
 
@@ -53,6 +54,12 @@ class TCP(Connection):
         
         # Fast Recovery (Reno)
         self.fast_recovery=fast_recovery
+
+        # AIAD
+        self.aiad = aiad
+
+        # AIMD Constant
+        self.aimdc = aimdc
         
         ### Used to make TCP Sequence Graphs
 
@@ -62,6 +69,11 @@ class TCP(Connection):
         self.dropY = []
         self.ackX = []
         self.ackY = []
+
+        ### Used to make window size graphs
+
+        self.window_x = []
+        self.window_y = []
 
         ### Receiver functionality
 
@@ -89,6 +101,11 @@ class TCP(Connection):
             self.handle_data(packet)
 
     ''' Sender '''
+
+    # Record the current time and congestion window size
+    def recordWindow(self):
+        self.window_x.append(Sim.scheduler.current_time())
+        self.window_y.append(self.window)
 
     # Record packets sent for plotting purposes
     def recordPacketSent(self, time, sequence):
@@ -160,16 +177,25 @@ class TCP(Connection):
             self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
 
     def slow_start(self, duplicate_acks=False):
-        if duplicate_acks and self.fast_recovery:
-            # If using fast recovery and three duplicate acks are detected,
-            # set the window to half the original and 
-            # keep going with additive increase
-            self.window = int(round(self.window/2 / self.mss) * self.mss)
+
+        # if the AIAD setting is turned on
+        if self.aiad:
+            self.window -= self.mss
             self.state = 1
+
+        # otherwise do regular recovery
         else:
-            # Otherwise reset the window to 1 mss and use slow start
-            self.window = self.mss
-            self.state = 0
+            if duplicate_acks and self.fast_recovery:
+                # If using fast recovery and three duplicate acks are detected,
+                # set the window to self.aimdc (AIMD constant) of the original and 
+                # keep going with additive increase
+                self.window = int(round(self.window * self.aimdc / self.mss) * self.mss)
+                self.state = 1
+            else:
+                # Otherwise reset the window to 1 mss and use slow start
+                self.window = self.mss
+                self.state = 0
+        self.recordWindow()
 
     def increaseWindow(self,packet):
         # Increase the window
@@ -187,6 +213,7 @@ class TCP(Connection):
             increment = self.mss * packet.ack_packet_length / self.window
             self.window += increment
             self.trace("Additive Increase - Incremented window by %d. New window size: %d" % (increment, self.window))
+        self.recordWindow()
 
     def calculateRTO(self, packet):
         # Calculate Sample RTT
@@ -298,7 +325,7 @@ class TCP(Connection):
 
     def increase_packet_count(self):
         t = Sim.scheduler.current_time()
-        t = "{0:0.1f}".format(t)
+        t = "{0:0.1f}".format(math.floor(t*10)/10.0)
         c = self.packets_received.get(t)
         if not c:
             self.packets_received[t] = 0

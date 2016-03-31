@@ -1,0 +1,1 @@
+python advancedAiad.py -t 50000 && open charts/advanced/aimd/*

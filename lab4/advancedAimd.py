@@ -35,7 +35,7 @@ class Main(object):
         self.directory = 'received'
         self.parse_options()
         self.run()
-        #self.diff()
+        self.diff('test.txt')
 
     def parse_options(self):
         parser = optparse.OptionParser(usage = "%prog [options]",
@@ -68,8 +68,8 @@ class Main(object):
         self.threshold = options.threshold
         self.fast_recovery = options.fast_recovery
 
-    def diff(self):
-        args = ['diff','-u',self.filename,self.directory+'/'+self.filename]
+    def diff(self, fh='test.txt'):
+        args = ['diff','-u',fh,self.directory+'/'+fh]
         result = subprocess.Popen(args,stdout = subprocess.PIPE).communicate()[0]
         print
         if not result:
@@ -79,14 +79,15 @@ class Main(object):
             print
             print result
 
+
     def run(self):
         # parameters
         Sim.scheduler.reset()
-        Sim.set_debug('AppHandler')
+        #Sim.set_debug('AppHandler')
         #Sim.set_debug('TCP')
         Sim.set_debug('Link')
 
-        net = Network('networks/one-hop-queue.txt')
+        net = Network('networks/one.txt')
         net.loss(self.loss)
 
         # setup routes
@@ -100,14 +101,14 @@ class Main(object):
         t2 = Transport(n2)
 
         # setup application
-        a = AppHandler(self.filename)
+        a1 = AppHandler('test.txt')
 
         # setup connection
-        c1 = TCP(t1,n1.get_address('n2'),1,n2.get_address('n1'),1,a,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
-        c2 = TCP(t2,n2.get_address('n1'),1,n1.get_address('n2'),1,a,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
+        c1 = TCP(t1,n1.get_address('n2'),1,n2.get_address('n1'),1,a1,window=self.window,threshold=self.threshold,fast_recovery=True,aimdc=5.0/6.0)
+        c2 = TCP(t2,n2.get_address('n1'),1,n1.get_address('n2'),1,a1,window=self.window,threshold=self.threshold,fast_recovery=True,aimdc=5.0/6.0)
 
         # send a file
-        with open(self.filename,'r') as f:
+        with open('test.txt','r') as f:
             while True:
                 data = f.read(1000)
                 if not data:
@@ -132,14 +133,19 @@ class Main(object):
         print "Throughput: %f" % throughput
 
         plotter = Plotter()
-        #print "Saving the sequence plot"
-        #plotter.create_sequence_plot(c1.x, c1.y, c1.dropX, c1.dropY, c1.ackX, c1.ackY)
-        self.c2 = c2
-        self.c1 = c1
-        self.t1 = t1
-        self.t2 = t2
-        self.net = net
-        plotter.rateTimePlot(c2.packets_received, Sim.scheduler.current_time(), 'one/rateTime.png')
+        print "Saving the sequence plot"
+        plotter.create_sequence_plot(c1.x, c1.y, c1.dropX, c1.dropY, c1.ackX, c1.ackY, chart_name='advanced/aimd/sequence.png')
+
+        plotter.clear()
+        plotter.rateTimePlot(c2.packets_received, Sim.scheduler.current_time(), 'advanced/aimd/rateTime1.png')
+
+        linkab = n1.links[0]
+        self.linkab = linkab
+        plotter.clear()
+        plotter.queueSizePlot(linkab.queue_log_x, linkab.queue_log_y, linkab.dropped_packets_x, linkab.dropped_packets_y, chart_name='advanced/aimd/queueSize.png')
+
+        plotter.clear()
+        plotter.windowSizePlot(c1.window_x, c1.window_y, chart_name="advanced/aimd/windowSize1.png")
 
 if __name__ == '__main__':
     m = Main()

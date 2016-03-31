@@ -25,11 +25,11 @@
   frame=tb,
 }
 
-\title{Congestion Control Part 1}
+\title{Congestion Control Part 2}
 
 \author{Nathan Davis}
 
-\date{Mar 14, 2016}
+\date{Mar 30, 2016}
 
 \maketitle
 
@@ -37,36 +37,96 @@
 
 \subsection{General Setup}
 
-The implementation for TCP and TCPPacket were initially copied from lab2. We won't cover any of the implementations from that lab and we'll assume that the beginning code base is taken from the result of that lab.
+The implementation for TCP and TCPPacket were initially copied from lab3. We won't cover any of the implementations from that lab and we'll assume that the beginning code base is taken from the result of that lab.
 
-\subsection{Configuration Setup}
+\subsection{Link Setup}
 
-We added an option to transfer.py to allow the threshold (-t) to be set conveniently. The default is 100000.
+In order to keep track of the queue length over time, we created a function in link.py. This function records the current simulation time and the size of the queue.
 
 \vspace{5mm}
 
 \begin{lstlisting}
-    parser.add_option("-t","--threshold",type="int",dest="threshold",
-                      default=100000,
-                      help="beginning threshold for tcp")
+    self.queue_log_x = []
+    self.queue_log_y = []
+    ...
+    def queue_log_entry(self):
+        self.queue_log_x.append(Sim.scheduler.current_time())
+        self.queue_log_y.append(len(self.queue))
 \end{lstlisting}
 
 \vspace{5mm}
 
-This threshold is passed in to TCP using the constructor and set as a class variable.
+We call that function whenever a packet is transmitted over the link. This gives us a sufficient number of points to graph the size of the queue over time. Similarly, dropped packets are recorded:
 
 \vspace{5mm}
 
 \begin{lstlisting}
-    c1 = TCP(t1,n1.get_address('n2'),1,n2.get_address('n1'),1,a,
-        window=self.window,threshold=self.threshold)
+    self.dropped_packets_x = []
+    self.dropped_packets_y = []
+    ...
+    def dropped_packets_entry(self):
+        self.dropped_packets_x.append(Sim.scheduler.current_time())
+        self.dropped_packets_y.append(len(self.queue))
+\end{lstlisting}
+
+\vspace{5mm}
+
+The dropped packets are recorded any time there is random loss or loss due to queue overflow. Because there is no random loss in these simulations, all losses are caused by queue overflow.
+
+\subsection{Link Setup}
+
+The receiving rate was implemented in the receiving side of TCP. We used a list of dictionaries to keep track of how many packets were received every second. In order to measure the packets on a granularity of 1/10 second, we formatted every timestamp to strings with one decimal point. 
+
+\vspace{5mm}
+
+\begin{lstlisting}
+    def increase_packet_count(self):
+        t = Sim.scheduler.current_time()
+        t = "{0:0.1f}".format(math.floor(t*10)/10.0)
+        c = self.packets_received.get(t)
+        if not c:
+            self.packets_received[t] = 0
+        self.packets_received[t] += 1
+\end{lstlisting}
+
+\vspace{5mm}
+
+After the script ran, we're able to take these counts out and add them up in 1 second windows to determine the receiving rate in kbps. We use a for loop that goes from 0 to a couple of seconds after the last simulation timestamp. Every step in the loop looks at the last packets received up to 1 second ago.
+
+\vspace{5mm}
+
+\begin{lstlisting}
+    def rateTimePlot(self, rrates, current_time, chart_name='rate.png'):
+        xplots = []
+        yplots = []
+        last_timestamp = int(current_time*10) + 11
+        for x in range(last_timestamp):
+
+            lower = max(0, x-10)
+            upper = min(x+1, last_timestamp)
+            t_packets = 0
+            for y in range(max(x-10, 0), x+1):
+                y = str(y)
+                y = y[:-1] + '.' + y[-1:]
+                rate = rrates.get(y)
+                if rate:
+                    t_packets += rate
+            t_rate = ((t_packets * 1000 * 8) / (upper/10.0 - lower/10.0)) / 1000
+            xplots.append(x/10.0)
+            yplots.append(t_rate)
+
+        plt.plot(xplots, yplots)
+        plt.ylabel("Receive Rate (kbps)")
+        plt.xlabel("Time (s)")
+        if chart_name:
+            plt.savefig('charts/' + chart_name)
 \end{lstlisting}
 
 \vspace{5mm}
 
 \subsection{Network Setup}
 
-For the networks in this paper, we set up two nodes. We used the same structure for each part and varied the threshold size. The configuration looks like this:
+For most the networks in this paper (with the acception of the competing RTT example), we set up two nodes. We used the same structure for each part and varied the queue length and threshold size. The configuration looks like this:
 
 \vspace{5mm}
 
@@ -77,260 +137,339 @@ For the networks in this paper, we set up two nodes. We used the same structure 
     n2 n1
 
     # link configuration
-    n1 n2 0.8Mbps 100ms
-    n2 n1 0.8Mbps 100ms
+    n1 n2 40pkts 10Mbps 10ms
+    n2 n1 40pkts 10Mbps 10ms
 \end{lstlisting}
 
 \vspace{5mm}
 
-\section{TCP Tahoe}
+\section{Basic}
 
-\subsection{Slow Start}
+\subsection{One Flow}
 
-Whenever TCP Tahoe receives an ACK, it increases the window size. There are two ways in which it does this, either by the slow start method or additive increase. We used a variable to keep track of the different ways TCP should increase window size. We called this variable the state.
+For the one flow experiment, use the network setup from the setup section. We set the queue to 40 packets so that the flow would hit that limit earlier and it would be easier to visualize. For similar reasons, we used a test file "test.txt" that was slightly over 2MB. We can see from the sequence graph that transmission starts in slow start and then grows at additive increase.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/one/sequence.png}
+
+\vspace{5mm}
+
+Whenever loss occurs, the window is set back to zero and there's a slow start to the new threshold (Tahoe).
+
+\vspace{5mm}
+
+From the receiver rate, we can see that the one connection uses the entire capacity of the link. It ramps up to full capacity and then appears to ramp down, although we know that it drops off abruptly and the rolling window just makes it appear to be a smooth decent.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/one/rateTime1.png}
+
+\vspace{5mm}
+
+The congestion window shows a typical sawtooth pattern. With a larger file or lower queue length we see more "teeth" in the saw, but this diagram is sufficient to show the pattern.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/one/windowSize1.png}
+
+\vspace{5mm}
+
+The chart of the queue size displays the size of the queue as it grows and the loss (red x's) caused by queue overflow. You can see that it increases quickly at first because of the slow start until there's loss after which it increases at a slower rate.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/one/queueSize.png}
+
+\vspace{5mm}
+
+\subsection{Two Flows}
+
+For the two flow experiment, we added a second pair of connections to send data over. The connection use a copy of test.txt to match the sending of the first link. This connection goes over the exact same path as the first connection.
 
 \vspace{5mm}
 
 \begin{lstlisting}
-    # State determines slow start vs. additive increase
-    # 0 = slow start
-    # 1 = additive increase
-    self.state = 0
+    c3 = TCP(t1,n1.get_address('n2'),2,n2.get_address('n1'),2,a2,
+        window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
+    c4 = TCP(t2,n2.get_address('n1'),2,n1.get_address('n2'),2,a2,
+        window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
+    ...
+    with open('test2.txt','r') as f:
+        while True:
+            data = f.read(1000)
+            if not data:
+                break
+            Sim.scheduler.add(delay=0, event=data, handler=c3.send)
 \end{lstlisting}
 
 \vspace{5mm}
 
-When using the slow start method, TCP increases the window size by the number of bytes sent. This causes the growth to be exponential. Effectively, two new packets are sent out for every ACK received. If the window grows to equal or greater than the size of the threshold, slow start is halted and additive increase is used instead.
+The congestion window for the first connection show us a typical sawtooth pattern. It reaches the threshold much more often as the threshold is lower because it's sharing the link with another connection now.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/two/windowSize1.png}
+
+\vspace{5mm}
+
+The congestion window for the second connection shows us a similar pattern until the first link finishes its transmission, at which point the second connection continues to grow until it finishes its transmission.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/two/windowSize1.png}
+
+\vspace{5mm}
+
+The sequence plots for the connections look very similar with slow start at the beginning and then additive increase with resets at the points when there was loss detected.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/two/sequence1.png}
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/two/sequence2.png}
+
+\vspace{5mm}
+
+The visualization of the queue size shows us that the queue grows much more rapidly than with one connection. Packets are lost more often, which causes the connections to reset to 1 MSS window more often.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/two/queueSize.png}
+
+\vspace{5mm}
+
+The receiving rate shows both connections sharing the link. Both connections are oscillating around 1/2 the link capacity.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/two/rateTime.png}
+
+\vspace{5mm}
+
+\subsection{Five Flows}
+
+To get five flows, we multiply the number of files being sent and then number of connections. We offset the file transfers by about 1 second for each connection in order to see the differences clearly. The queue size clearly hits a maximum fairly quickly. The connections cause the queue to grow quickly until there's loss and then they all back off.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/five/queueSize.png}
+
+\vspace{5mm}
+
+The receiving rate shows us that as each new connection joins in, the link usage balances out so that each connection gets about 1/n of the link bandwidth (where n is the number of connections).
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/five/rateTime5.png}
+
+\vspace{5mm}
+
+\section{Advanced}
+
+\subsection{AIAD}
+
+In this experiment we used additive increase, additive decrease. Instead of decreasing the window size back to 1 MSS when there was loss or even dividing the window in half, we just subtracted 1 MSS from the current window size.
 
 \vspace{5mm}
 
 \begin{lstlisting}
-    # Increase the window
-    if self.state == 0:
-        # Slow Start
-        self.window += packet.ack_packet_length
-        # If the window equals or exceeds the threshold, stop slow start
-        if self.window >= self.threshold:
-            self.state = 1
+    # if the AIAD setting is turned on
+    if self.aiad:
+        self.window -= self.mss
+        self.state = 1
 \end{lstlisting}
 
 \vspace{5mm}
 
-In order to increase the window size by the length of the packet, we added that information to the ACK packets. When the receiver sends an ACK it recordes the size of the original packet in the ACK.
+We noticed that this caused many more losses in the queue over time. The queue oscillated between empty and full as the sending rate changed. Eventually, the queue size seemed to even out and oscillated from 0 to around 10. This was caused by the round trip time adjustments.
 
 \vspace{5mm}
 
-\begin{lstlisting}
-    self.send_ack(packet.sent_time, packet.length)
-\end{lstlisting}
+\includegraphics[width=17cm]{charts/advanced/aiad/queueSize.png}
 
 \vspace{5mm}
 
-In the end, we see an exponential increase in the number of packets sent in the window. The following sequence diagram has a threshold of 100,000 bytes and the file is fairly small. The slow start remains in effect throughout the entire transmission.
+The throughput seemed to stay relatively constant. The rate climed to link capacity and stayed there until the packet finished transmitting. However, the rate didn't drop off as steeply at the end which leads to believe that many packets had to be retransmitted because of loss.
 
 \vspace{5mm}
 
-\includegraphics[width=17cm]{charts/slowstart.png}
+\includegraphics[width=17cm]{charts/advanced/aiad/rateTime1.png}
 
 \vspace{5mm}
 
-The graph shows that growth is exponential. Each time packets are sent, the number of packets sent doubles. Since slow start continues through the entire transmission of the file, we only see slow start at work here.
-
-\subsection{Additive Increase}
-
-Additive increase adds a semi-static number to the window size. This number is determined with the following equation.
-
-\vspace{5mm}
-\(Increase = \frac{MSS \times Number of Bytes Acknowledged}{Window Size}\)
-\vspace{5mm}
-
-This is used so that as the window size grows, the added window size will tend to grow smaller. As the window size approaches infinity, the increase will approach zero. The increase size is also dependent on the size of the packet that was ACKed.\par
-
-Additive increase is marked with the state variable. When state is equal to 1, we use additive increase to change the window size.
+The change in window size leads to an interesting discussion. The slow start takes the window to well over the link capacity and it has to scale back. However, because the decrease was only additive, the window size takes a long time to decrease to a sufficient point to where it's stable.
 
 \vspace{5mm}
 
-\begin{lstlisting}
-    elif self.state == 1:
-        #Additive increase
-        increment = self.mss * packet.ack_packet_length / self.window
-        self.window += increment
-\end{lstlisting}
+\includegraphics[width=17cm]{charts/advanced/aiad/windowSize1.png}
 
 \vspace{5mm}
 
-In the following experiment we set the threshold to 16000 so that additivie increase would kick in before the end of the file. We can see that after additive increase starts the window size increases at a rate much slower than exponential.
-
-\vspace{5mm}
-
-\includegraphics[width=17cm]{charts/additiveincrease.png}
-
-\vspace{5mm}
-
-\subsection{Fast Retransmit}
-
-When three duplicate ACKs are detected, we need to immediately retransmit that packet. In order to track when duplicate ACKs are received, we use two variables, one to keep track of the last ACK number and one to keep track of how many times we've seen it.
-
-\vspace{5mm}
-
-\begin{lstlisting}
-    # Most recent ack (used for calculating three duplicate acks)
-    self.last_ack = None
-    # Same ack count (used for calculating three duplicate acks)
-    self.same_ack_count = 0
-\end{lstlisting}
-
-\vspace{5mm}
-
-When we receive an ACK, we check if it's the same as the last one we received. If the ACK number is different from the ACK received before that we set the last ACK to that packet's ACK number and set the count to 1. We also proceed to process the ACK as normal. We increase the window size, slide the received window and send packets according to the new window size.
-
-\vspace{5mm}
-
-\begin{lstlisting}
-    # Watch for three duplicate acks
-    if self.last_ack != packet.ack_number:
-        # If a new ack is received
-        self.last_ack = packet.ack_number
-        self.same_ack_count = 1
-        self.increaseWindow(packet)
-        self.slideWindow(packet)
-        self.sendNextBatch()
-\end{lstlisting}
-
-\vspace{5mm}
-
-If the ACK is the same number as the previous ACK, we increase the count.
-
-\vspace{5mm}
-
-\begin{lstlisting}
-    else:
-        # A duplicate ack has been received
-        self.same_ack_count += 1
-\end{lstlisting}
-
-\vspace{5mm}
-
-We also check to see if that ACK number has been seen more than three times. If this occurs, we reset the ACK count, set the threshold to half the window size, and retransmit. The retransmit will send the next packet and trigger slow start again.
-
-\vspace{5mm}
-
-\begin{lstlisting}
-    if self.same_ack_count > 3:
-        # When the fourth ack with the same number is received (3 duplicates)
-        self.trace("Three duplicate ACKs. Ignoring duplicate ACKs for same sequence number")
-        self.same_ack_count = -100
-        self.threshold = max(self.window/2, self.mss)
-        self.trace("Set new threshold to %d" % self.threshold)
-        self.cancel_timer()
-        self.retransmit({},duplicate_acks=True)
-\end{lstlisting}
-
-\vspace{5mm}
+From these findings, it would appear that TCP is still stable with only one connection under AIAD circumstances, however much more loss was experienced.
 
 \subsection{AIMD}
 
-Anytime a retransmit is triggered, we also trigger a slow start. Because of this, we see the pattern of additive increase and multiplicative decrease. In the following experiment we manually dropped packet 32. To manually drop packets, we added an attribute to the packet to mark it. We manually count the number of dropped packets to ensure we don't drop more than desired.
+In this experiment, we set up one connection but had it decrease at a slower rate than normal (5/6 instead of 1/2). We used fast recovery to make sure the changes were easily observable. We created an additive increase, multiplicative decrease constant (AIMDC) that could be configured per connection. The default was 0.5.
 
 \vspace{5mm}
 
 \begin{lstlisting}
-    # Forced Loss, loss, AIMD dropped packets
-    drop_list = [32000]
-    if sequence in drop_list and self.dropped_count < len(drop_list):
-        self.trace("Manually dropping packet %d" % sequence)
-        packet.drop = True
+    # AIMD Constant
+    self.aimdc = aimdc
 \end{lstlisting}
 
 \vspace{5mm}
 
-When the packet is dropped, the window has grown to size 32000 bytes. The threshold is then set to half of the window size and slow start occurs until it reaches that new threshold. Afterwards, additive increase continues as normal.
+The first difference we noticed was in the queue size. The queue grew to capacity as before but as it decreased it oscillated at a low queue length until it finished.
 
 \vspace{5mm}
 
-\includegraphics[width=17cm]{charts/aimd.png}
+\includegraphics[width=17cm]{charts/advanced/aimd/queueSize.png}
 
 \vspace{5mm}
 
-We can see the dropped packet around 1.1 seconds and the immediate retransmission after three duplicate ACKs at around 1.3 seconds. The transmission then proceeds with slow start up to half of the previous window size and then initiates additive increase.
+The rate peaks and then levels off at about half of the link capacity. We're not sure what causes this, but it appears that the queue length keeps it from growing to the full link capacity.
 
-\subsection{Burst Loss}
+\vspace{5mm}
 
-When there are multiple packets lost in rapid succession, we can see that the Tahoe will still recover with a slow start from 1 MSS. For burst loss we have to manually put in the packets to drop.
+\includegraphics[width=17cm]{charts/advanced/aimd/rateTime1.png}
+
+\vspace{5mm}
+
+The window grows quickly at first and has to experience multiple losses before it gets down to a steady rate.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/advanced/aimd/windowSize1.png}
+
+\vspace{5mm}
+
+From these results, we concluded that AIMD with a higher multiplicative constant is still stable although it may not be optimal.
+
+\subsection{Competing AIMD}
+
+In this experiment, we had two connections. One had the normal multiplicative constant of 1/2 and the other had a higher multiplicative constant of 5/6. We asked if they would still get an equal share of the bandwidth. Taking a look at the receiving rate, it appears that the link with a higher multiplicative constant took a much larger share of the bandwidth. That link took roughly 2/3 of the capacity while the other link took about 1/3. After one link finishes transmitting, the other link takes the remainder of the bandwidth.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/advanced/competingAimd/rateTime.png}
+
+\vspace{5mm}
+
+We can see from the window size of the link with the larger multiplicative constant that it retains a higher sending rate for longer.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/advanced/competingAimd/windowSize2.png}
+
+\vspace{5mm}
+
+The other link has a "normal" looking sawtooth pattern.
+
+\vspace{5mm}
+
+\includegraphics[width=17cm]{charts/advanced/competingAimd/windowSize1.png}
+
+\vspace{5mm}
+
+From these charts we concluded that a link with a higher multiplicative constant will take a larger portion of the link bandwidth.
+
+\subsection{Competing RTT}
+
+In this experiment, we set up two connections using 4 nodes. The first two nodes, n1 and n2 branched into n3 which connected to n4.
 
 \vspace{5mm}
 
 \begin{lstlisting}
-    drop_list = [32000, 33000, 34000] # For burst loss
+    # setup routes
+    # n1 - n3 - n4
+    #      |
+    #     n2
+    n1 = net.get_node('n1')
+    n2 = net.get_node('n2')
+    n3 = net.get_node('n3')
+    n4 = net.get_node('n4')
 \end{lstlisting}
 
 \vspace{5mm}
 
-Here's the results we get:
-
-\vspace{5mm}
-
-\includegraphics[width=17cm]{charts/burstloss.png}
-
-\vspace{5mm}
-
-From the chart above we can see that many packets sent after the lost packets send back ACKs for the original lost packet. However, after the lost packets are resent, the receiver immediately "catches up" to where it had left off. Shortly afterwards, it reaches the new threshold and begins additive increase.
-
-\section{Fast Recovery (Reno)}
-
-For the script included, we used -r to signify that fast recovery should be used.
+In the network configuration we set the propagation delay on the link between n1 and n3 to 100ms and the propagation delay on all other links to 10ms.
 
 \vspace{5mm}
 
 \begin{lstlisting}
-    parser.add_option("-r","--fast-recovery",dest="fast_recovery",
-                      default=False, action="store_true",
-                      help="use fast recovery (reno)")
+    #
+    n1 n3
+    n2 n3
+    n3 n1 n2 n4
+    n4 n3
+
+    # link configuration
+    n1 n3 100pkts 10Mbps 100ms
+    n3 n1 100pkts 10Mbps 100ms
+
+    n2 n3 100pkts 10Mbps 10ms
+    n3 n2 100pkts 10Mbps 10ms
+
+    n3 n4 100pkts 10Mbps 10ms
+    n4 n3 100pkts 10Mbps 10ms
 \end{lstlisting}
 
 \vspace{5mm}
 
-When implementing fast recovery, everything stays the same except for the recovery after a loss caused by three duplicate acks. In this case, a retransmission occurs as normal, and the window is set to half of the current window size. From there, additive increase continues as normal. 
+We connected the network so that n1 and n3 were linked, n2 and n3 were linked, and n3 and n4 were linked.
 
 \vspace{5mm}
 
 \begin{lstlisting}
-    def slow_start(self, duplicate_acks=False):
-        if duplicate_acks and self.fast_recovery:
-            # If using fast recovery and three duplicate acks are detected,
-            # set the window to half the original and 
-            # keep going with additive increase
-            self.window = int(round(self.window/2 / self.mss) * self.mss)
-            self.state = 1
-        else:
-            # Otherwise reset the window to 1 mss and use slow start
-            self.window = self.mss
-            self.state = 0
+    # n1 forwarding entries
+    n1.add_forwarding_entry(address=n3.get_address('n1'),link=n1.links[0])
+    n1.add_forwarding_entry(address=n4.get_address('n3'),link=n1.links[0])
+
+    # n2 forwarding entries
+    n2.add_forwarding_entry(address=n3.get_address('n2'),link=n2.links[0])
+    n2.add_forwarding_entry(address=n4.get_address('n3'),link=n2.links[0])
+
+    # n3 forwarding entries
+    n3.add_forwarding_entry(address=n1.get_address('n3'),link=n3.links[0])
+    n3.add_forwarding_entry(address=n2.get_address('n3'),link=n3.links[1])
+    n3.add_forwarding_entry(address=n4.get_address('n3'),link=n3.links[2])
+
+    # n4 forwarding entries
+    n4.add_forwarding_entry(address=n1.get_address('n3'),link=n4.links[0])
+    n4.add_forwarding_entry(address=n2.get_address('n3'),link=n4.links[0])
+    n4.add_forwarding_entry(address=n3.get_address('n4'),link=n4.links[0])
 \end{lstlisting}
 
 \vspace{5mm}
 
-In optimal conditions where only one loss occurs occasionally, this can be a great benefit. In the diagram below, we see that one packet was dropped and retransmitted when multiple ACKs were received. However, the window doesn't drop all the way back down to 1 MSS. Instead, it continues from half of its previous window size.
+This allowed us to set up connections from n1 to n4 with 110 ms propagation delay and from n2 to n4 with 20 ms propagation delay.
 
 \vspace{5mm}
 
-\includegraphics[width=17cm]{charts/renosingle.png}
+\begin{lstlisting}
+    # setup connection
+    c1 = TCP(t1,n1.get_address('n3'),1,n4.get_address('n3'),1,a1)
+    c2 = TCP(t4,n4.get_address('n3'),1,n1.get_address('n3'),1,a1)
+
+    c3 = TCP(t2,n2.get_address('n3'),2,n4.get_address('n3'),2,a2)
+    c4 = TCP(t4,n4.get_address('n3'),2,n2.get_address('n3'),2,a2)
+\end{lstlisting}
 
 \vspace{5mm}
 
-However, we can see that Reno reacts very poorly to burst loss in the chart below.
+We wanted to know if the links would get equal shares of the bandwidth. The receiving rate graph shows that the link with the smaller propagation delay gets a much higher percentage of the link bandwidth.
 
 \vspace{5mm}
 
-\includegraphics[width=17cm]{charts/renoburst.png}
+\includegraphics[width=17cm]{charts/advanced/competingRtt/rateTime.png}
 
 \vspace{5mm}
 
-After the original packet loss, our implementation of Reno resends the missing packet but fails to resend the next two immediately. When the missing packet gets through, it continues to send packets at a rate of half the previous window size. The first two packets fill in the missing spots in the receiver's buffer but the rest of the packets aren't needed and so another set of duplicate ACKs is generated. Because of those duplicates, the send buffer is once again reset and a full duplicate window of packets is sent. This continues for a few rounds until Reno gets to a small enough window where it resets itself.
-
-\vspace{5mm}
-
-Note: Our chart does not look the same as the one in the SACK paper because our buffer resets when it sends data thus nulling out the number of outstanding packets and restarting from the last ACK received. Notwithstanding the fact that it doesn't yield the exact same results, the staggering number of duplicate packets sent in this last experiment is educational in itself.
+This happens because the lower delay allows the link to receive ACKs quicker and increase its window size at a quicker rate.
 
 \vspace{5mm}
 

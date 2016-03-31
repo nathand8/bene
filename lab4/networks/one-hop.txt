@@ -1,8 +1,0 @@
-# n1 -- n2
-#
-n1 n2
-n2 n1
-
-# link configuration
-n1 n2 0.8Mbps 100ms
-n2 n1 0.8Mbps 100ms

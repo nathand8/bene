@@ -37,6 +37,9 @@ class Main(object):
         self.run()
         self.diff('test1.txt')
         self.diff('test2.txt')
+        self.diff('test3.txt')
+        self.diff('test4.txt')
+        self.diff('test5.txt')
 
     def parse_options(self):
         parser = optparse.OptionParser(usage = "%prog [options]",
@@ -88,7 +91,7 @@ class Main(object):
         #Sim.set_debug('TCP')
         Sim.set_debug('Link')
 
-        net = Network('networks/two.txt')
+        net = Network('networks/five.txt')
         net.loss(self.loss)
 
         # setup routes
@@ -104,6 +107,9 @@ class Main(object):
         # setup application
         a1 = AppHandler('test1.txt')
         a2 = AppHandler('test2.txt')
+        a3 = AppHandler('test3.txt')
+        a4 = AppHandler('test4.txt')
+        a5 = AppHandler('test5.txt')
 
         # setup connection
         c1 = TCP(t1,n1.get_address('n2'),1,n2.get_address('n1'),1,a1,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
@@ -111,6 +117,15 @@ class Main(object):
 
         c3 = TCP(t1,n1.get_address('n2'),2,n2.get_address('n1'),2,a2,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
         c4 = TCP(t2,n2.get_address('n1'),2,n1.get_address('n2'),2,a2,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
+
+        c5 = TCP(t1,n1.get_address('n2'),3,n2.get_address('n1'),3,a3,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
+        c6 = TCP(t2,n2.get_address('n1'),3,n1.get_address('n2'),3,a3,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
+
+        c7 = TCP(t1,n1.get_address('n2'),4,n2.get_address('n1'),4,a4,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
+        c8 = TCP(t2,n2.get_address('n1'),4,n1.get_address('n2'),4,a4,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
+
+        c9 = TCP(t1,n1.get_address('n2'),5,n2.get_address('n1'),5,a5,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
+        c0 = TCP(t2,n2.get_address('n1'),5,n1.get_address('n2'),5,a5,window=self.window,threshold=self.threshold,fast_recovery=self.fast_recovery)
 
         # send a file
         with open('test1.txt','r') as f:
@@ -124,7 +139,25 @@ class Main(object):
                 data = f.read(1000)
                 if not data:
                     break
-                Sim.scheduler.add(delay=0, event=data, handler=c3.send)
+                Sim.scheduler.add(delay=1.5, event=data, handler=c3.send)
+        with open('test3.txt','r') as f:
+            while True:
+                data = f.read(1000)
+                if not data:
+                    break
+                Sim.scheduler.add(delay=2, event=data, handler=c5.send)
+        with open('test4.txt','r') as f:
+            while True:
+                data = f.read(1000)
+                if not data:
+                    break
+                Sim.scheduler.add(delay=2.5, event=data, handler=c7.send)
+        with open('test5.txt','r') as f:
+            while True:
+                data = f.read(1000)
+                if not data:
+                    break
+                Sim.scheduler.add(delay=3, event=data, handler=c9.send)
 
         # run the simulation
         Sim.scheduler.run()
@@ -159,25 +192,28 @@ class Main(object):
         plotter = Plotter()
 
         # Plot sequence charts
-        plotter.clear()
-        plotter.create_sequence_plot(c1.x, c1.y, c1.dropX, c1.dropY, c1.ackX, c1.ackY, chart_name='two/sequence1.png')
-        plotter.clear()
-        plotter.create_sequence_plot(c3.x, c3.y, c3.dropX, c3.dropY, c3.ackX, c3.ackY, chart_name='two/sequence2.png')
+        #plotter.clear()
+        #plotter.create_sequence_plot(c1.x, c1.y, c1.dropX, c1.dropY, c1.ackX, c1.ackY, chart_name='five/sequence1.png')
+        #plotter.clear()
+        #plotter.create_sequence_plot(c3.x, c3.y, c3.dropX, c3.dropY, c3.ackX, c3.ackY, chart_name='five/sequence2.png')
 
         # Plot receiver rate
         plotter.clear()
-        plotter.rateTimePlot(c2.packets_received, Sim.scheduler.current_time(), chart_name=None)
-        plotter.rateTimePlot(c4.packets_received, Sim.scheduler.current_time(), chart_name='two/rateTime.png')
+        plotter.rateTimePlot(c2.packets_received, Sim.scheduler.current_time(), chart_name='five/rateTime1.png')
+        plotter.rateTimePlot(c4.packets_received, Sim.scheduler.current_time(), chart_name='five/rateTime2.png')
+        plotter.rateTimePlot(c6.packets_received, Sim.scheduler.current_time(), chart_name='five/rateTime3.png')
+        plotter.rateTimePlot(c8.packets_received, Sim.scheduler.current_time(), chart_name='five/rateTime4.png')
+        plotter.rateTimePlot(c0.packets_received, Sim.scheduler.current_time(), chart_name='five/rateTime5.png')
 
         # Plot queue size
         plotter.clear()
-        plotter.queueSizePlot(l.queue_log_x, l.queue_log_y, l.dropped_packets_x, l.dropped_packets_y, chart_name='two/queueSize.png')
+        plotter.queueSizePlot(l.queue_log_x, l.queue_log_y, l.dropped_packets_x, l.dropped_packets_y, chart_name='five/queueSize.png')
 
         # Plot congestion window
-        plotter.clear()
-        plotter.windowSizePlot(c1.window_x, c1.window_y, chart_name="two/windowSize1.png")
-        plotter.clear()
-        plotter.windowSizePlot(c3.window_x, c3.window_y, chart_name="two/windowSize2.png")
+        #plotter.clear()
+        #plotter.windowSizePlot(c1.window_x, c1.window_y, chart_name="five/windowSize1.png")
+        #plotter.clear()
+        #plotter.windowSizePlot(c3.window_x, c3.window_y, chart_name="five/windowSize2.png")
 
 if __name__ == '__main__':
     m = Main()
