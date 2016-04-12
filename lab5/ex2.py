@@ -27,7 +27,7 @@ if __name__ == '__main__':
     #Sim.set_debug('Node')
 
     # setup network
-    net = Network('networks/five-nodes.txt')
+    net = Network('networks/five-nodes-ring.txt')
 
     # get nodes
     n1 = net.get_node('n1')
@@ -55,9 +55,17 @@ if __name__ == '__main__':
     b5 = DVRoutingApp(n5)
     n5.add_protocol(protocol="dvrouting",handler=b5)
 
-    # send one packet
+    # send one packet from n1 to n5
+    p = packet.Packet(destination_address=n5.get_address('n1'),protocol='data')
+    Sim.scheduler.add(delay=5, event=p, handler=n1.send_packet)
+
+    # take the link down between n1 and n5
+    Sim.scheduler.add(delay=10, event=None, handler=n1.get_link('n5').down)
+    Sim.scheduler.add(delay=10, event=None, handler=n5.get_link('n1').down)
+
+    # send another packet from n1 to n5
     p = packet.Packet(destination_address=n5.get_address('n4'),protocol='data')
-    Sim.scheduler.add(delay=35, event=p, handler=n1.send_packet)
+    Sim.scheduler.add(delay=100, event=p, handler=n1.send_packet)
 
     # run the simulation
     Sim.scheduler.run()
