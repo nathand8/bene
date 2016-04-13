@@ -59,13 +59,21 @@ if __name__ == '__main__':
     p = packet.Packet(destination_address=n5.get_address('n1'),protocol='data')
     Sim.scheduler.add(delay=5, event=p, handler=n1.send_packet)
 
+    # send one packet from n4 to n1
+    p = packet.Packet(destination_address=n1.get_address('n5'),protocol='data')
+    Sim.scheduler.add(delay=7, event=p, handler=n4.send_packet)
+
     # take the link down between n1 and n5
     Sim.scheduler.add(delay=10, event=None, handler=n1.get_link('n5').down)
     Sim.scheduler.add(delay=10, event=None, handler=n5.get_link('n1').down)
 
-    # send another packet from n1 to n5
-    p = packet.Packet(destination_address=n5.get_address('n4'),protocol='data')
-    Sim.scheduler.add(delay=100, event=p, handler=n1.send_packet)
+    # send one packet from n1 to n5
+    p = packet.Packet(destination_address=n5.get_address('n1'),protocol='data')
+    Sim.scheduler.add(delay=130, event=p, handler=n1.send_packet)
+
+    # send one packet from n4 to n1
+    p = packet.Packet(destination_address=n1.get_address('n5'),protocol='data')
+    Sim.scheduler.add(delay=132, event=p, handler=n4.send_packet)
 
     # run the simulation
     Sim.scheduler.run()

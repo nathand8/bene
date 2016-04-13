@@ -16,8 +16,14 @@ class DistanceVector(object):
         self.distance = distance
         self.next_hop = next_hop
 
+    def __str__(self):
+        return "DV(" + str(self.distance) + ", " + self.next_hop + ")"
+
+    def __repr__(self):
+        return self.__str__()
+
 # self.dvs format:
-#   address: distance
+#   address: distance_vector
 # {
 #   2: DistanceVector(10, link)
 # }
@@ -46,16 +52,16 @@ class DVRoutingApp(object):
         # Broadcast every 30 seconds
         self.recurring_broadcast_dvs()
 
+    def broadcast_dvs(self, delay=0):
+        # send a broadcast packet to all neighbors
+        dvp = DVPacket(source_hostname=self.node.hostname, dvs=self.dvs)
+        Sim.scheduler.add(delay=delay, event=dvp, handler=self.node.send_packet)
+
     def recurring_broadcast_dvs(self, delay=30):
         self.broadcast_dvs()
         # Key to kill simulation after self.stop_time seconds
         if Sim.scheduler.current_time() < self.stop_time:
             Sim.scheduler.add(delay=delay, event=30, handler=self.recurring_broadcast_dvs)
-
-    def broadcast_dvs(self, delay=0):
-        # send a broadcast packet to all neighbors
-        dvp = DVPacket(source_hostname=self.node.hostname, dvs=self.dvs)
-        Sim.scheduler.add(delay=delay, event=dvp, handler=self.node.send_packet)
 
     def add_forwarding_entry_to_host(self, addr, name):
         # This should overwrite a previous entry
@@ -74,7 +80,7 @@ class DVRoutingApp(object):
             timestamp = self.neighbor_timestamps.get(neighbor)
 
             # If the neighbor has gone down
-            if not timestamp or current_time - timestamp > max_time:
+            if not timestamp or current_time - timestamp >= max_time:
                 print Sim.scheduler.current_time(),self.node.hostname,"detected that the link to",neighbor,"is down"
                 dead_neighbors.append(neighbor)
 
@@ -140,8 +146,10 @@ class DVRoutingApp(object):
         # Mark if any changes are made
         pristine = True
 
-        # Check for things in the new one to update in the old one
+        # Create a new dvs from the neighbors dvs
         new_dvs = self.new_dvs()
+
+        # Check for things in the new one to update in the old one
         for a, v in new_dvs.iteritems():
             new_vector = v
             current_vector = self.dvs.get(a)
@@ -158,7 +166,6 @@ class DVRoutingApp(object):
                 dead_addresses.append(a)
                 pristine = False
                 print Sim.scheduler.current_time(),self.node.hostname,"removed route to address",a
-
         for a in dead_addresses:
             del self.dvs[a]
 

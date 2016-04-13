@@ -55,9 +55,17 @@ if __name__ == '__main__':
     b5 = DVRoutingApp(n5)
     n5.add_protocol(protocol="dvrouting",handler=b5)
 
-    # send one packet
+    # send one packet from n1 to n2
+    p = packet.Packet(destination_address=n2.get_address('n1'),protocol='data')
+    Sim.scheduler.add(delay=10, event=p, handler=n1.send_packet)
+
+    # send one packet from n1 to n5
     p = packet.Packet(destination_address=n5.get_address('n4'),protocol='data')
-    Sim.scheduler.add(delay=35, event=p, handler=n1.send_packet)
+    Sim.scheduler.add(delay=12, event=p, handler=n1.send_packet)
+
+    # send one packet from n5 to n1
+    p = packet.Packet(destination_address=n1.get_address('n2'),protocol='data')
+    Sim.scheduler.add(delay=14, event=p, handler=n5.send_packet)
 
     # run the simulation
     Sim.scheduler.run()

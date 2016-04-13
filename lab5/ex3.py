@@ -100,5 +100,13 @@ if __name__ == '__main__':
     p = packet.Packet(destination_address=n7.get_address('n4'),protocol='data')
     Sim.scheduler.add(delay=280, event=p, handler=n1.send_packet)
 
+    # set the link back up between n4 and n7
+    Sim.scheduler.add(delay=290, event=None, handler=n4.get_link('n7').up)
+    Sim.scheduler.add(delay=290, event=None, handler=n7.get_link('n4').up)
+
+    # send another packet from n1 to n7
+    p = packet.Packet(destination_address=n7.get_address('n4'),protocol='data')
+    Sim.scheduler.add(delay=332, event=p, handler=n1.send_packet)
+
     # run the simulation
     Sim.scheduler.run()
