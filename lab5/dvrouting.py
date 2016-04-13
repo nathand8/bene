@@ -30,7 +30,7 @@ class DistanceVector(object):
 # }
 
 class DVRoutingApp(object):
-    def __init__(self,node,stop_time=200):
+    def __init__(self,node,stop_time=400):
         self.node = node
         self.stop_time = stop_time
 

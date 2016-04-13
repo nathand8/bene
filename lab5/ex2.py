@@ -24,7 +24,7 @@ if __name__ == '__main__':
     # parameters
     Sim.scheduler.reset()
     Sim.set_debug(True)
-    #Sim.set_debug('Node')
+    Sim.set_debug('Nodedata')
 
     # setup network
     net = Network('networks/five-nodes-ring.txt')
